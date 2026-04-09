@@ -3,11 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TransitWake | Dual Theme</title>
+    <title>Stop-Alert | Smart GPS Alarm</title>
+    
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Stop-Alert">
+    <link rel="manifest" href="manifest.json">
+
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     
@@ -22,7 +25,6 @@
             --success: #22c55e;
         }
 
-        /* Dark Mode Overrides */
         [data-theme="dark"] {
             --bg: #0f172a;
             --text: #f8fafc;
@@ -38,7 +40,6 @@
 
         #map { height: 100vh; width: 100%; z-index: 1; }
 
-        /* Floating Theme Toggle */
         .theme-toggle {
             position: absolute; top: 20px; right: 20px; z-index: 1001;
             background: var(--panel); border: 1px solid var(--border);
@@ -77,14 +78,12 @@
         .btn-primary:disabled { background: #94a3b8; opacity: 0.5; }
         .btn-danger { background: var(--danger); color: white; display: none; }
 
-        /* User Location Dot */
         .user-dot {
             width: 14px; height: 14px; background: var(--primary);
             border: 3px solid white; border-radius: 50%;
             box-shadow: 0 0 15px var(--primary);
         }
 
-        /* Alarm Screen */
         #alarm-overlay {
             position: fixed; inset: 0; background: var(--danger); z-index: 9999;
             display: none; flex-direction: column; align-items: center;
@@ -99,7 +98,7 @@
 
     <div class="ui-overlay">
         <div class="glass-panel">
-            <h1>TransitWake</h1>
+            <h1>Stop-Alert</h1>
             <div id="distance-display">--<span>km</span></div>
             <p id="instruction" style="font-size: 0.9rem; margin-bottom: 20px; opacity: 0.8;">Tap map to set destination</p>
             
@@ -116,77 +115,50 @@
     <audio id="alarmSound" loop src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg"></audio>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <link rel="manifest" href="manifest.json">
 
-<script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js');
-  }
-
-  // To truly trick the phone into staying awake with the screen off:
-  // We play a silent 1-second audio loop. This tells the mobile OS 
-  // that the app is an "Active Media Player," which are rarely killed.
-  const silentAudio = new Audio('https://raw.githubusercontent.com/anars/blank-audio/master/1-second-of-silence.mp3');
-  silentAudio.loop = true;
-
-  // Modify your Start button to include this:
-  document.getElementById('startBtn').onclick = async () => {
-      silentAudio.play(); // Start the "Active Media" trick
-      // ... rest of your existing start code ...
-  };
-</script>
     <script>
-        
+        // 1. PWA Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').catch(err => console.log('SW error:', err));
+            });
+        }
+
+        // 2. Silent Audio Loophole (Keeps App Alive in Background)
+        const silentAudio = new Audio('https://raw.githubusercontent.com/anars/blank-audio/master/1-second-of-silence.mp3');
+        silentAudio.loop = true;
+
         let map, userMarker, destMarker, watchId, currentTiles;
         let isDark = false;
-        const body = document.body;
         const alarmSound = document.getElementById('alarmSound');
 
-        // Map Tile URLs
         const lightTiles = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
         const darkTiles = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
-        // 1. Init Map
-        // 1. Initialize Map (No fixed center here)
-map = L.map('map', { zoomControl: false });
+        // 3. Initialize Map & Auto-Locate
+        map = L.map('map', { zoomControl: false });
+        currentTiles = L.tileLayer(lightTiles).addTo(map);
 
-// 2. Add the tiles 
-currentTiles = L.tileLayer(lightTiles).addTo(map);
+        map.locate({ setView: true, maxZoom: 16, enableHighAccuracy: true });
 
-// 3. This triggers the GPS "Search"
-map.locate({
-    setView: true, 
-    maxZoom: 16,     // This is a good "neighborhood" zoom level
-    enableHighAccuracy: true 
-});
+        map.on('locationfound', (e) => {
+            if (!userMarker) {
+                userMarker = L.marker(e.latlng, {
+                    icon: L.divIcon({ className: 'user-dot', iconSize: [14, 14] })
+                }).addTo(map);
+            } else {
+                userMarker.setLatLng(e.latlng);
+            }
+        });
 
-// 4. THIS IS NEW: When the phone finds you, the map moves there
-map.on('locationfound', function(e) {
-    if (userMarker) {
-        userMarker.setLatLng(e.latlng);
-    } else {
-        // Create the user's blue dot
-        userMarker = L.marker(e.latlng, {
-            icon: L.divIcon({ className: 'user-dot', iconSize: [14, 14] })
-        }).addTo(map);
-    }
-    console.log("GPS Locked: ", e.latlng);
-});
-
-// 5. Handle if the user denies GPS permission
-map.on('locationerror', function(e) {
-    alert("Location access denied. Please enable GPS for Stop-Alert to work.");
-});
-
-        // 2. Theme Toggle Logic
+        // 4. UI Logic
         document.getElementById('themeBtn').onclick = () => {
             isDark = !isDark;
-            body.setAttribute('data-theme', isDark ? 'dark' : 'light');
+            document.body.setAttribute('data-theme', isDark ? 'dark' : 'light');
             map.removeLayer(currentTiles);
             currentTiles = L.tileLayer(isDark ? darkTiles : lightTiles).addTo(map);
         };
 
-        // 3. Set Destination
         map.on('click', (e) => {
             if (destMarker) map.removeLayer(destMarker);
             destMarker = L.marker(e.latlng).addTo(map);
@@ -194,36 +166,40 @@ map.on('locationerror', function(e) {
             document.getElementById('instruction').innerText = "Destination Locked!";
         });
 
-        // 4. Tracking Logic
+        // 5. Tracking Logic
         document.getElementById('startBtn').onclick = () => {
+            silentAudio.play(); 
             document.getElementById('startBtn').style.display = 'none';
             document.getElementById('stopBtn').style.display = 'block';
             
-            if ('wakeLock' in navigator) navigator.wakeLock.request('screen');
+            if ('wakeLock' in navigator) navigator.wakeLock.request('screen').catch(console.error);
 
             watchId = navigator.geolocation.watchPosition(async (pos) => {
                 const { latitude: lat, longitude: lon } = pos.coords;
-                
-                if (!userMarker) {
-                    userMarker = L.marker([lat, lon], {
-                        icon: L.divIcon({ className: 'user-dot', iconSize: [14, 14] })
-                    }).addTo(map);
-                } else {
-                    userMarker.setLatLng([lat, lon]);
-                }
+                userMarker.setLatLng([lat, lon]);
 
-                // OSRM API (Free Road Distance)
+                // Road Distance Call
                 const url = `https://router.project-osrm.org/route/v1/driving/${lon},${lat};${destMarker.getLatLng().lng},${destMarker.getLatLng().lat}?overview=false`;
+                
                 try {
                     const res = await fetch(url).then(r => r.json());
                     const meters = res.routes[0].distance;
                     document.getElementById('distance-display').innerHTML = `${(meters/1000).toFixed(1)}<span>km</span>`;
                     
-                    if (meters < 1000) { // Trigger at 1km
+                    if (meters < 1000) { 
                         alarmSound.play();
                         document.getElementById('alarm-overlay').style.display = 'flex';
+                        if (navigator.vibrate) navigator.vibrate([500, 200, 500]);
                     }
-                } catch (e) { console.error("Routing error"); }
+                } catch (e) {
+                    // Fallback to straight line if offline
+                    const dist = map.distance([lat, lon], destMarker.getLatLng());
+                    document.getElementById('distance-display').innerHTML = `~${(dist/1000).toFixed(1)}<span>km</span>`;
+                    if (dist < 800) { 
+                         alarmSound.play();
+                         document.getElementById('alarm-overlay').style.display = 'flex';
+                    }
+                }
             }, null, { enableHighAccuracy: true });
         };
 
