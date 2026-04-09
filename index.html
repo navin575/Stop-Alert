@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>TransitWake | Dual Theme</title>
+    <meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
@@ -144,8 +147,36 @@
         const darkTiles = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
         // 1. Init Map
-        map = L.map('map', { zoomControl: false }).setView([0, 0], 2);
-        currentTiles = L.tileLayer(lightTiles).addTo(map);
+        // 1. Initialize Map (No fixed center here)
+map = L.map('map', { zoomControl: false });
+
+// 2. Add the tiles 
+currentTiles = L.tileLayer(lightTiles).addTo(map);
+
+// 3. This triggers the GPS "Search"
+map.locate({
+    setView: true, 
+    maxZoom: 16,     // This is a good "neighborhood" zoom level
+    enableHighAccuracy: true 
+});
+
+// 4. THIS IS NEW: When the phone finds you, the map moves there
+map.on('locationfound', function(e) {
+    if (userMarker) {
+        userMarker.setLatLng(e.latlng);
+    } else {
+        // Create the user's blue dot
+        userMarker = L.marker(e.latlng, {
+            icon: L.divIcon({ className: 'user-dot', iconSize: [14, 14] })
+        }).addTo(map);
+    }
+    console.log("GPS Locked: ", e.latlng);
+});
+
+// 5. Handle if the user denies GPS permission
+map.on('locationerror', function(e) {
+    alert("Location access denied. Please enable GPS for Stop-Alert to work.");
+});
 
         // 2. Theme Toggle Logic
         document.getElementById('themeBtn').onclick = () => {
