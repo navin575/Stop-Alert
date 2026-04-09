@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TransitWake | Dual Theme</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary: #6366f1;
+            --bg: #ffffff;
+            --text: #1e293b;
+            --panel: rgba(255, 255, 255, 0.85);
+            --border: rgba(0, 0, 0, 0.1);
+            --danger: #ef4444;
+            --success: #22c55e;
+        }
+
+        /* Dark Mode Overrides */
+        [data-theme="dark"] {
+            --bg: #0f172a;
+            --text: #f8fafc;
+            --panel: rgba(30, 41, 59, 0.85);
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        body, html { 
+            margin: 0; padding: 0; height: 100%; 
+            font-family: 'Inter', sans-serif; background: var(--bg);
+            color: var(--text); overflow: hidden; transition: background 0.3s ease;
+        }
+
+        #map { height: 100vh; width: 100%; z-index: 1; }
+
+        /* Floating Theme Toggle */
+        .theme-toggle {
+            position: absolute; top: 20px; right: 20px; z-index: 1001;
+            background: var(--panel); border: 1px solid var(--border);
+            padding: 10px; border-radius: 50%; cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); font-size: 20px;
+        }
+
+        .ui-overlay {
+            position: absolute; bottom: 30px; left: 50%;
+            transform: translateX(-50%); width: 90%; max-width: 400px;
+            z-index: 1000;
+        }
+
+        .glass-panel {
+            background: var(--panel);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 28px; padding: 24px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            text-align: center;
+        }
+
+        h1 { margin: 0; font-size: 1.1rem; font-weight: 800; color: var(--primary); text-transform: uppercase; }
+        
+        #distance-display {
+            font-size: 3rem; font-weight: 800; margin: 15px 0;
+            display: flex; align-items: baseline; justify-content: center;
+        }
+        #distance-display span { font-size: 1.2rem; margin-left: 4px; opacity: 0.6; }
+
+        .btn {
+            width: 100%; padding: 18px; border: none; border-radius: 20px;
+            font-weight: 700; font-size: 1.1rem; cursor: pointer;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:disabled { background: #94a3b8; opacity: 0.5; }
+        .btn-danger { background: var(--danger); color: white; display: none; }
+
+        /* User Location Dot */
+        .user-dot {
+            width: 14px; height: 14px; background: var(--primary);
+            border: 3px solid white; border-radius: 50%;
+            box-shadow: 0 0 15px var(--primary);
+        }
+
+        /* Alarm Screen */
+        #alarm-overlay {
+            position: fixed; inset: 0; background: var(--danger); z-index: 9999;
+            display: none; flex-direction: column; align-items: center;
+            justify-content: center; color: white; text-align: center;
+        }
+    </style>
+</head>
+<body data-theme="light">
+
+    <button class="theme-toggle" id="themeBtn">🌓</button>
+    <div id="map"></div>
+
+    <div class="ui-overlay">
+        <div class="glass-panel">
+            <h1>TransitWake</h1>
+            <div id="distance-display">--<span>km</span></div>
+            <p id="instruction" style="font-size: 0.9rem; margin-bottom: 20px; opacity: 0.8;">Tap map to set destination</p>
+            
+            <button id="startBtn" class="btn btn-primary" disabled>Start Alarm</button>
+            <button id="stopBtn" class="btn btn-danger">Stop Alarm</button>
+        </div>
+    </div>
+
+    <div id="alarm-overlay">
+        <h1 style="color: white; font-size: 4rem;">WAKE UP!</h1>
+        <button onclick="location.reload()" class="btn" style="background: white; color: var(--danger); width: 200px; margin-top: 40px;">I'M AWAKE</button>
+    </div>
+
+    <audio id="alarmSound" loop src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg"></audio>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="manifest" href="manifest.json">
+
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js');
+  }
+
+  // To truly trick the phone into staying awake with the screen off:
+  // We play a silent 1-second audio loop. This tells the mobile OS 
+  // that the app is an "Active Media Player," which are rarely killed.
+  const silentAudio = new Audio('https://raw.githubusercontent.com/anars/blank-audio/master/1-second-of-silence.mp3');
+  silentAudio.loop = true;
+
+  // Modify your Start button to include this:
+  document.getElementById('startBtn').onclick = async () => {
+      silentAudio.play(); // Start the "Active Media" trick
+      // ... rest of your existing start code ...
+  };
+</script>
+    <script>
+        
+        let map, userMarker, destMarker, watchId, currentTiles;
+        let isDark = false;
+        const body = document.body;
+        const alarmSound = document.getElementById('alarmSound');
+
+        // Map Tile URLs
+        const lightTiles = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+        const darkTiles = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+
+        // 1. Init Map
+        map = L.map('map', { zoomControl: false }).setView([0, 0], 2);
+        currentTiles = L.tileLayer(lightTiles).addTo(map);
+
+        // 2. Theme Toggle Logic
+        document.getElementById('themeBtn').onclick = () => {
+            isDark = !isDark;
+            body.setAttribute('data-theme', isDark ? 'dark' : 'light');
+            map.removeLayer(currentTiles);
+            currentTiles = L.tileLayer(isDark ? darkTiles : lightTiles).addTo(map);
+        };
+
+        // 3. Set Destination
+        map.on('click', (e) => {
+            if (destMarker) map.removeLayer(destMarker);
+            destMarker = L.marker(e.latlng).addTo(map);
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('instruction').innerText = "Destination Locked!";
+        });
+
+        // 4. Tracking Logic
+        document.getElementById('startBtn').onclick = () => {
+            document.getElementById('startBtn').style.display = 'none';
+            document.getElementById('stopBtn').style.display = 'block';
+            
+            if ('wakeLock' in navigator) navigator.wakeLock.request('screen');
+
+            watchId = navigator.geolocation.watchPosition(async (pos) => {
+                const { latitude: lat, longitude: lon } = pos.coords;
+                
+                if (!userMarker) {
+                    userMarker = L.marker([lat, lon], {
+                        icon: L.divIcon({ className: 'user-dot', iconSize: [14, 14] })
+                    }).addTo(map);
+                } else {
+                    userMarker.setLatLng([lat, lon]);
+                }
+
+                // OSRM API (Free Road Distance)
+                const url = `https://router.project-osrm.org/route/v1/driving/${lon},${lat};${destMarker.getLatLng().lng},${destMarker.getLatLng().lat}?overview=false`;
+                try {
+                    const res = await fetch(url).then(r => r.json());
+                    const meters = res.routes[0].distance;
+                    document.getElementById('distance-display').innerHTML = `${(meters/1000).toFixed(1)}<span>km</span>`;
+                    
+                    if (meters < 1000) { // Trigger at 1km
+                        alarmSound.play();
+                        document.getElementById('alarm-overlay').style.display = 'flex';
+                    }
+                } catch (e) { console.error("Routing error"); }
+            }, null, { enableHighAccuracy: true });
+        };
+
+        document.getElementById('stopBtn').onclick = () => location.reload();
+    </script>
+</body>
+</html>
