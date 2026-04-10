@@ -35,7 +35,11 @@ self.addEventListener('activate', (e) => {
     })
   );
 });
-
+self.addEventListener('periodicsync', (event) => {
+  if (event.tag === 'get-distance') {
+    event.waitUntil(fetchDistance());
+  }
+});
 // Fetch: Serve from cache, fallback to network
 self.addEventListener('fetch', (e) => {
   e.respondWith(
