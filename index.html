@@ -9,7 +9,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Stop-Alert">
-   <link rel="manifest" href="./manifest.json">
+    <link rel="manifest" href="./manifest.json">
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
@@ -117,28 +117,26 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        // 1. PWA Service Worker Registration
+        // 1. Service Worker Registration
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('sw.js').catch(err => console.log('SW error:', err));
             });
         }
 
-        // 2. Silent Audio Loophole (Keeps App Alive in Background)
+        // 2. Variables & Audio Assets
         const silentAudio = new Audio('https://raw.githubusercontent.com/anars/blank-audio/master/1-second-of-silence.mp3');
         silentAudio.loop = true;
-
+        
         let map, userMarker, destMarker, watchId, currentTiles;
         let isDark = false;
         const alarmSound = document.getElementById('alarmSound');
-
         const lightTiles = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
         const darkTiles = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
-        // 3. Initialize Map & Auto-Locate
+        // 3. Initialize Map & Locate
         map = L.map('map', { zoomControl: false });
         currentTiles = L.tileLayer(lightTiles).addTo(map);
-
         map.locate({ setView: true, maxZoom: 16, enableHighAccuracy: true });
 
         map.on('locationfound', (e) => {
@@ -151,7 +149,7 @@
             }
         });
 
-        // 4. UI Logic
+        // 4. UI Toggle & Map Clicks
         document.getElementById('themeBtn').onclick = () => {
             isDark = !isDark;
             document.body.setAttribute('data-theme', isDark ? 'dark' : 'light');
@@ -166,74 +164,72 @@
             document.getElementById('instruction').innerText = "Destination Locked!";
         });
 
-        // 5. Tracking Logic
-document.getElementById('startBtn').onclick = async () => {
-            // --- NEW: THE MEDIA SESSION TRICK ---
-            // This tells the phone to treat the app like a Music Player (like Spotify)
-            // It prevents the GPS from being paused when you lock the screen.
+        // 5. MAIN TRACKING LOGIC (Background Ready)
+        document.getElementById('startBtn').onclick = async () => {
+            // A. Media Session Metadata (Crucial for Background)
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.metadata = new MediaMetadata({
                     title: 'Stop-Alert: ACTIVE',
-                    artist: 'Monitoring your location...',
-                    album: 'Safety Mode',
+                    artist: 'Background Tracking On',
                     artwork: [{ src: 'https://cdn-icons-png.flaticon.com/512/552/552408.png', sizes: '512x512', type: 'image/png' }]
                 });
             }
 
-            // Start the silent audio loop to keep the CPU awake
-            try {
-                await silentAudio.play();
-            } catch (err) {
-                console.log("Audio auto-play blocked. User interaction required.");
-            }
-
+            // B. Start Silent Audio & UI Change
+            try { await silentAudio.play(); } catch (err) { console.log("Audio Blocked"); }
             document.getElementById('startBtn').style.display = 'none';
             document.getElementById('stopBtn').style.display = 'block';
             
-            // Keep the screen awake if it's visible
+            // C. Wake Lock & GPS Start
             if ('wakeLock' in navigator) {
-                try {
-                    await navigator.wakeLock.request('screen');
-                } catch (err) {
-                    console.error("Wake Lock error:", err);
-                }
+                try { await navigator.wakeLock.request('screen'); } catch (err) { }
             }
 
-            // High-accuracy options for background tracking
             const geoOptions = {
                 enableHighAccuracy: true,
                 maximumAge: 0,
-                timeout: 10000
+                timeout: 10000 
             };
 
             watchId = navigator.geolocation.watchPosition(async (pos) => {
                 const { latitude: lat, longitude: lon } = pos.coords;
-                userMarker.setLatLng([lat, lon]);
+                const userLoc = [lat, lon];
+                const destLoc = destMarker.getLatLng();
 
-                // Road Distance Call (OSRM)
-                const url = `https://router.project-osrm.org/route/v1/driving/${lon},${lat};${destMarker.getLatLng().lng},${destMarker.getLatLng().lat}?overview=false`;
-                
-                try {
-                    const res = await fetch(url).then(r => r.json());
-                    const meters = res.routes[0].distance;
-                    document.getElementById('distance-display').innerHTML = `${(meters/1000).toFixed(1)}<span>km</span>`;
-                    
-                    if (meters < 800) { 
-                        alarmSound.play();
-                        document.getElementById('alarm-overlay').style.display = 'flex';
-                        if (navigator.vibrate) navigator.vibrate([500, 200, 500]);
-                    }
-                } catch (e) {
-                    // Fallback to straight line if offline
-                    const dist = map.distance([lat, lon], destMarker.getLatLng());
-                    document.getElementById('distance-display').innerHTML = `~${(dist/1000).toFixed(1)}<span>km</span>`;
-                    if (dist < 800) { 
-                         alarmSound.play();
-                         document.getElementById('alarm-overlay').style.display = 'flex';
-                    }
+                userMarker.setLatLng(userLoc);
+
+                // D. PRIORITY CALCULATION (Local Math - No Internet Needed)
+                // This updates even if the network is throttled in the background
+                const directDist = map.distance(userLoc, destLoc);
+                document.getElementById('distance-display').innerHTML = `~${(directDist/1000).toFixed(1)}<span>km</span>`;
+
+                if (directDist < 800) { 
+                    triggerAlarm();
                 }
-            }, null, { enableHighAccuracy: true });
+
+                // E. SECONDARY CALCULATION (Road Distance)
+                const url = `https://router.project-osrm.org/route/v1/driving/${lon},${lat};${destLoc.lng},${destLoc.lat}?overview=false`;
+                fetch(url)
+                    .then(r => r.json())
+                    .then(res => {
+                        const roadMeters = res.routes[0].distance;
+                        document.getElementById('distance-display').innerHTML = `${(roadMeters/1000).toFixed(1)}<span>km</span>`;
+                        if (roadMeters < 800) triggerAlarm();
+                    })
+                    .catch(() => { /* Maintain straight-line view */ });
+
+            }, (err) => {
+                console.warn("GPS Signal Lost");
+            }, geoOptions);
         };
+
+        function triggerAlarm() {
+            if (alarmSound.paused) {
+                alarmSound.play();
+                document.getElementById('alarm-overlay').style.display = 'flex';
+                if (navigator.vibrate) navigator.vibrate([1000, 500, 1000, 500, 1000]);
+            }
+        }
 
         document.getElementById('stopBtn').onclick = () => location.reload();
     </script>
