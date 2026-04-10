@@ -25,12 +25,13 @@
             --success: #22c55e;
         }
 
-        [data-theme="dark"] {
-            --bg: #0f172a;
-            --text: #f8fafc;
-            --panel: rgba(30, 41, 59, 0.85);
-            --border: rgba(255, 255, 255, 0.1);
-        }
+     [data-theme="dark"] {
+    --bg: #334155;        /* Slate blue: much easier on the eyes than black */
+    --text: #ffffff;      
+    --panel: rgba(30, 41, 59, 0.95); /* Solid indigo-slate */
+    --border: rgba(255, 255, 255, 0.3);
+    --primary: #a5b4fc;   /* Light indigo: very easy to see against dark slate */
+}
 
         body, html { 
             margin: 0; padding: 0; height: 100%; 
@@ -133,8 +134,9 @@
         let isDark = false;
         const alarmSound = document.getElementById('alarmSound');
         const lightTiles = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-        // This version has better contrast for roads and labels
-const darkTiles = 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png';
+      
+// This is a "Night Navigation" style: less black, more grey/blue for visibility
+        const darkTiles = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png';ng';
 
         // 3. Initialize Map & Locate
         map = L.map('map', { zoomControl: false });
