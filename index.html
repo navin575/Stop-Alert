@@ -1,172 +1,284 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Stop-Alert | Smart GPS Alarm</title>
-    
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <link rel="manifest" href="./manifest.json">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Stop-Alert | Smart GPS Alarm</title>
 
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-    
-    <style>
-        :root { --primary: #6366f1; --bg: #ffffff; --text: #1e293b; --panel: rgba(255, 255, 255, 0.95); --border: rgba(0, 0, 0, 0.1); --danger: #ef4444; }
-        [data-theme="dark"] { --bg: #1e293b; --text: #f8fafc; --panel: rgba(30, 41, 59, 0.95); --border: rgba(255, 255, 255, 0.1); --primary: #818cf8; }
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); overflow: hidden; }
-        #map { height: 100vh; width: 100%; z-index: 1; }
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 
-        .theme-toggle { position: absolute; top: 20px; right: 20px; z-index: 1001; background: var(--panel); border: 1px solid var(--border); padding: 10px; border-radius: 50%; cursor: pointer; font-size: 20px; }
+<style>
+:root {
+    --primary: #6366f1;
+    --bg: #ffffff;
+    --text: #1e293b;
+    --panel: rgba(255,255,255,0.95);
+    --border: rgba(0,0,0,0.1);
+    --danger: #ef4444;
+}
 
-        .ui-overlay { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 400px; z-index: 1000; }
-        .glass-panel { background: var(--panel); backdrop-filter: blur(12px); border: 1px solid var(--border); border-radius: 28px; padding: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); text-align: center; }
+[data-theme="dark"] {
+    --bg: #1e293b;
+    --text: #f8fafc;
+    --panel: rgba(30,41,59,0.95);
+    --border: rgba(255,255,255,0.1);
+    --primary: #818cf8;
+}
 
-        /* Custom Search Box UI */
-        .search-container { position: relative; margin-bottom: 15px; }
-        #dest-search { 
-            width: 100%; padding: 14px; border-radius: 12px; border: 1px solid var(--border); 
-            font-family: 'Inter'; font-size: 0.9rem; box-sizing: border-box; outline: none;
-        }
-        #search-results {
-            position: absolute; bottom: 100%; left: 0; width: 100%; background: white;
-            border-radius: 12px; box-shadow: 0 -5px 15px rgba(0,0,0,0.1); 
-            max-height: 200px; overflow-y: auto; display: none; z-index: 1005;
-        }
-        .result-item { padding: 10px; border-bottom: 1px solid #eee; font-size: 0.8rem; cursor: pointer; text-align: left; color: #1e293b; }
+body,html{
+    margin:0;
+    padding:0;
+    height:100%;
+    font-family:'Inter',sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    overflow:hidden;
+}
 
-        #distance-display { font-size: 3rem; font-weight: 800; margin: 10px 0; display: flex; align-items: baseline; justify-content: center; }
-        #distance-display span { font-size: 1.2rem; margin-left: 4px; opacity: 0.6; }
+#map{
+    height:100vh;
+    width:100%;
+}
 
-        .btn { width: 100%; padding: 18px; border: none; border-radius: 20px; font-weight: 700; font-size: 1.1rem; cursor: pointer; }
-        .btn-primary { background: var(--primary); color: white; }
-        .btn-primary:disabled { background: #94a3b8; opacity: 0.5; }
-        .btn-danger { background: var(--danger); color: white; display: none; }
+.theme-toggle{
+    position:absolute;
+    top:20px;
+    right:20px;
+    z-index:1001;
+    padding:10px;
+    border-radius:50%;
+    cursor:pointer;
+}
 
-        .user-dot { width: 14px; height: 14px; background: var(--primary); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px var(--primary); }
-        #alarm-overlay { position: fixed; inset: 0; background: var(--danger); z-index: 9999; display: none; flex-direction: column; align-items: center; justify-content: center; color: white; }
-    </style>
+.ui-overlay{
+    position:absolute;
+    bottom:30px;
+    left:50%;
+    transform:translateX(-50%);
+    width:90%;
+    max-width:400px;
+}
+
+.glass-panel{
+    background:var(--panel);
+    backdrop-filter:blur(12px);
+    border-radius:28px;
+    padding:20px;
+    text-align:center;
+}
+
+/* SEARCH */
+.search-container{
+    position:relative;
+}
+
+#dest-search{
+    width:100%;
+    padding:14px;
+    border-radius:12px;
+    border:1px solid var(--border);
+}
+
+#search-results{
+    position:absolute;
+    bottom:100%;
+    width:100%;
+    background:white;
+    border-radius:12px;
+    max-height:200px;
+    overflow-y:auto;
+    display:none;
+}
+
+.result-item{
+    padding:10px;
+    border-bottom:1px solid #eee;
+    cursor:pointer;
+    font-size:0.8rem;
+}
+
+.result-item:hover{
+    background:#f1f5f9;
+}
+
+#distance-display{
+    font-size:2.5rem;
+    font-weight:800;
+}
+
+.btn{
+    width:100%;
+    padding:15px;
+    border:none;
+    border-radius:20px;
+    font-weight:700;
+}
+
+.btn-primary{
+    background:var(--primary);
+    color:white;
+}
+
+.btn-danger{
+    background:var(--danger);
+    color:white;
+    display:none;
+}
+
+.user-dot{
+    width:14px;
+    height:14px;
+    background:var(--primary);
+    border-radius:50%;
+}
+</style>
 </head>
+
 <body data-theme="light">
 
-    <button class="theme-toggle" id="themeBtn">🌓</button>
-    <div id="map"></div>
+<button class="theme-toggle" id="themeBtn">🌓</button>
+<div id="map"></div>
 
-    <div class="ui-overlay">
-        <div class="glass-panel">
-            <h1 style="font-size: 0.9rem; color: var(--primary); margin-bottom: 10px;">STOP-ALERT</h1>
-            
-            <div class="search-container">
-                <input type="text" id="dest-search" placeholder="🔍 Type your stop name...">
-                <div id="search-results"></div>
-            </div>
+<div class="ui-overlay">
+<div class="glass-panel">
 
-            <div id="distance-display">--<span>km</span></div>
-            <p id="instruction" style="font-size: 0.8rem; margin-bottom: 15px; opacity: 0.7;">Tap map or search to set stop</p>
-            
-            <button id="startBtn" class="btn btn-primary" disabled>Start Alarm</button>
-            <button id="stopBtn" class="btn btn-danger">Stop Alarm</button>
-        </div>
-    </div>
+<h2>STOP ALERT</h2>
 
-    <div id="alarm-overlay">
-        <h1 style="font-size: 3rem;">WAKE UP!</h1>
-        <button onclick="location.reload()" class="btn" style="background: white; color: var(--danger); width: 200px; margin-top: 30px;">I'M AWAKE</button>
-    </div>
+<div class="search-container">
+<input type="text" id="dest-search" placeholder="Search destination...">
+<div id="search-results"></div>
+</div>
 
-    <audio id="alarmSound" loop src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg"></audio>
+<div id="distance-display">-- km</div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<button id="startBtn" class="btn btn-primary" disabled>Start Alarm</button>
+<button id="stopBtn" class="btn btn-danger">Stop</button>
 
-    <script>
-        if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js'); }); }
+</div>
+</div>
 
-        const silentAudio = new Audio('https://raw.githubusercontent.com/anars/blank-audio/master/1-second-of-silence.mp3');
-        silentAudio.loop = true;
-        
-        let map, userMarker, destMarker, watchId, currentTiles;
-        const alarmSound = document.getElementById('alarmSound');
-        const lightTiles = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-        const darkTiles = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png';
+<div id="alarm-overlay" style="display:none;position:fixed;inset:0;background:red;color:white;align-items:center;justify-content:center;flex-direction:column;">
+<h1>WAKE UP!</h1>
+</div>
 
-        // Initialize Map
-        map = L.map('map', { zoomControl: false }).setView([0,0], 2);
-        currentTiles = L.tileLayer(lightTiles).addTo(map);
-        map.locate({ setView: true, maxZoom: 16, enableHighAccuracy: true });
+<audio id="alarmSound" loop src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg"></audio>
 
-        // --- CUSTOM SEARCH LOGIC ---
-        const searchInput = document.getElementById('dest-search');
-        const resultsBox = document.getElementById('search-results');
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-        searchInput.addEventListener('input', async (e) => {
-            const query = e.target.value;
-            if (query.length < 3) { resultsBox.style.display = 'none'; return; }
+<script>
+let map = L.map('map').setView([0,0],2);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=5`);
+let userMarker, destMarker, watchId;
+const alarmSound = document.getElementById('alarmSound');
+
+// 📍 Get user location
+map.locate({setView:true, maxZoom:16});
+
+map.on('locationfound', e=>{
+    if(!userMarker){
+        userMarker = L.marker(e.latlng).addTo(map);
+    } else {
+        userMarker.setLatLng(e.latlng);
+    }
+});
+
+// ================= SEARCH SYSTEM =================
+
+const searchInput = document.getElementById('dest-search');
+const resultsBox = document.getElementById('search-results');
+
+let debounceTimer;
+
+searchInput.addEventListener('input', (e)=>{
+    clearTimeout(debounceTimer);
+
+    const query = e.target.value.trim();
+
+    if(query.length < 3){
+        resultsBox.style.display = 'none';
+        return;
+    }
+
+    debounceTimer = setTimeout(async ()=>{
+        try{
+            const res = await fetch(
+                `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`
+            );
+
             const data = await res.json();
-            
+
             resultsBox.innerHTML = '';
-            data.forEach(item => {
+
+            if(data.length === 0){
+                resultsBox.innerHTML = '<div class="result-item">No results</div>';
+            }
+
+            data.forEach(place=>{
                 const div = document.createElement('div');
                 div.className = 'result-item';
-                div.innerText = item.display_name;
-                div.onclick = () => {
-                    const latlng = [item.lat, item.lon];
+                div.innerHTML = `<b>${place.display_name.split(',')[0]}</b><br><small>${place.display_name}</small>`;
+
+                div.onclick = ()=>{
+                    const latlng = [parseFloat(place.lat), parseFloat(place.lon)];
                     setDestination(latlng);
+                    searchInput.value = place.display_name;
                     resultsBox.style.display = 'none';
-                    searchInput.value = item.display_name;
                 };
+
                 resultsBox.appendChild(div);
             });
-            resultsBox.style.display = 'block';
-        });
 
-        function setDestination(latlng) {
-            if (destMarker) map.removeLayer(destMarker);
-            destMarker = L.marker(latlng).addTo(map);
-            map.setView(latlng, 16);
-            document.getElementById('startBtn').disabled = false;
-            document.getElementById('instruction').innerText = "Target Set!";
+            resultsBox.style.display = 'block';
+
+        } catch(err){
+            console.log(err);
+        }
+    }, 400);
+});
+
+// ================= DESTINATION =================
+
+function setDestination(latlng){
+    if(destMarker) map.removeLayer(destMarker);
+
+    destMarker = L.marker(latlng).addTo(map);
+    map.setView(latlng,16);
+
+    document.getElementById('startBtn').disabled = false;
+}
+
+// ================= ALARM =================
+
+document.getElementById('startBtn').onclick = ()=>{
+    document.getElementById('startBtn').style.display = 'none';
+    document.getElementById('stopBtn').style.display = 'block';
+
+    watchId = navigator.geolocation.watchPosition(pos=>{
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+
+        userMarker.setLatLng([lat,lon]);
+
+        const dist = map.distance([lat,lon], destMarker.getLatLng());
+
+        document.getElementById('distance-display').innerText = (dist/1000).toFixed(2) + " km";
+
+        if(dist < 800){
+            alarmSound.play();
+            document.getElementById('alarm-overlay').style.display = 'flex';
         }
 
-        map.on('click', (e) => { setDestination(e.latlng); });
+    }, null, {enableHighAccuracy:true});
+};
 
-        map.on('locationfound', (e) => {
-            if (!userMarker) {
-                userMarker = L.marker(e.latlng, { icon: L.divIcon({ className: 'user-dot', iconSize: [14, 14] }) }).addTo(map);
-            } else { userMarker.setLatLng(e.latlng); }
-        });
+document.getElementById('stopBtn').onclick = ()=>location.reload();
 
-        document.getElementById('themeBtn').onclick = () => {
-            const isDark = document.body.getAttribute('data-theme') === 'light';
-            document.body.setAttribute('data-theme', isDark ? 'dark' : 'light');
-            map.removeLayer(currentTiles);
-            currentTiles = L.tileLayer(isDark ? darkTiles : lightTiles).addTo(map);
-        };
+</script>
 
-        // Alarm Logic
-        document.getElementById('startBtn').onclick = async () => {
-            try { await silentAudio.play(); } catch (e) { }
-            document.getElementById('startBtn').style.display = 'none';
-            document.getElementById('stopBtn').style.display = 'block';
-            
-            watchId = navigator.geolocation.watchPosition((pos) => {
-                const { latitude: lat, longitude: lon } = pos.coords;
-                userMarker.setLatLng([lat, lon]);
-                const dist = map.distance([lat, lon], destMarker.getLatLng());
-                document.getElementById('distance-display').innerHTML = `${(dist/1000).toFixed(1)}<span>km</span>`;
-
-                if (dist < 800) { 
-                    alarmSound.play();
-                    document.getElementById('alarm-overlay').style.display = 'flex';
-                    if (navigator.vibrate) navigator.vibrate([1000, 500, 1000]);
-                }
-            }, null, { enableHighAccuracy: true });
-        };
-
-        document.getElementById('stopBtn').onclick = () => location.reload();
-    </script>
 </body>
 </html>
