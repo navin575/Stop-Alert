@@ -12,6 +12,7 @@
     <link rel="manifest" href="./manifest.json">
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     
     <style>
@@ -19,19 +20,18 @@
             --primary: #6366f1;
             --bg: #ffffff;
             --text: #1e293b;
-            --panel: rgba(255, 255, 255, 0.85);
+            --panel: rgba(255, 255, 255, 0.9);
             --border: rgba(0, 0, 0, 0.1);
             --danger: #ef4444;
-            --success: #22c55e;
         }
 
-     [data-theme="dark"] {
-    --bg: #334155;        /* Slate blue: much easier on the eyes than black */
-    --text: #ffffff;      
-    --panel: rgba(30, 41, 59, 0.95); /* Solid indigo-slate */
-    --border: rgba(255, 255, 255, 0.3);
-    --primary: #a5b4fc;   /* Light indigo: very easy to see against dark slate */
-}
+        [data-theme="dark"] {
+            --bg: #1e293b; 
+            --text: #f8fafc;
+            --panel: rgba(30, 41, 59, 0.95);
+            --border: rgba(255, 255, 255, 0.1);
+            --primary: #818cf8;
+        }
 
         body, html { 
             margin: 0; padding: 0; height: 100%; 
@@ -39,7 +39,8 @@
             color: var(--text); overflow: hidden; transition: background 0.3s ease;
         }
 
-        #map { height: 100vh; width: 100%; z-index: 1; }
+        #map { height: 100vh; width: 100%; z-index: 1; background: #cbd5e1; }
+        [data-theme="dark"] #map { background: #0f172a; }
 
         .theme-toggle {
             position: absolute; top: 20px; right: 20px; z-index: 1001;
@@ -48,6 +49,14 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.1); font-size: 20px;
         }
 
+        /* Search Bar Styling */
+        .leaflet-control-geocoder { 
+            border-radius: 12px !important; margin-top: 20px !important; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+        }
+        [data-theme="dark"] .leaflet-control-geocoder { background: var(--panel) !important; color: white !important; }
+        [data-theme="dark"] .leaflet-control-geocoder-form input { color: white !important; }
+
         .ui-overlay {
             position: absolute; bottom: 30px; left: 50%;
             transform: translateX(-50%); width: 90%; max-width: 400px;
@@ -55,41 +64,29 @@
         }
 
         .glass-panel {
-            background: var(--panel);
-            backdrop-filter: blur(12px);
-            border: 1px solid var(--border);
-            border-radius: 28px; padding: 24px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
-            text-align: center;
+            background: var(--panel); backdrop-filter: blur(12px);
+            border: 1px solid var(--border); border-radius: 28px; padding: 24px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2); text-align: center;
         }
 
         h1 { margin: 0; font-size: 1.1rem; font-weight: 800; color: var(--primary); text-transform: uppercase; }
-        
-        #distance-display {
-            font-size: 3rem; font-weight: 800; margin: 15px 0;
-            display: flex; align-items: baseline; justify-content: center;
-        }
+        #distance-display { font-size: 3rem; font-weight: 800; margin: 15px 0; display: flex; align-items: baseline; justify-content: center; }
         #distance-display span { font-size: 1.2rem; margin-left: 4px; opacity: 0.6; }
 
-        .btn {
-            width: 100%; padding: 18px; border: none; border-radius: 20px;
-            font-weight: 700; font-size: 1.1rem; cursor: pointer;
-        }
+        .btn { width: 100%; padding: 18px; border: none; border-radius: 20px; font-weight: 700; font-size: 1.1rem; cursor: pointer; }
         .btn-primary { background: var(--primary); color: white; }
         .btn-primary:disabled { background: #94a3b8; opacity: 0.5; }
         .btn-danger { background: var(--danger); color: white; display: none; }
 
-       .user-dot {
-    width: 14px; height: 14px; background: var(--primary);
-    border: 3px solid white; border-radius: 50%;
-    /* This glow makes the dot "pop" off the dark map */
-    box-shadow: 0 0 20px 5px rgba(129, 140, 248, 0.6); 
-}
+        .user-dot {
+            width: 14px; height: 14px; background: var(--primary);
+            border: 3px solid white; border-radius: 50%;
+            box-shadow: 0 0 15px var(--primary);
+        }
 
         #alarm-overlay {
             position: fixed; inset: 0; background: var(--danger); z-index: 9999;
-            display: none; flex-direction: column; align-items: center;
-            justify-content: center; color: white; text-align: center;
+            display: none; flex-direction: column; align-items: center; justify-content: center; color: white; text-align: center;
         }
     </style>
 </head>
@@ -102,8 +99,7 @@
         <div class="glass-panel">
             <h1>Stop-Alert</h1>
             <div id="distance-display">--<span>km</span></div>
-            <p id="instruction" style="font-size: 0.9rem; margin-bottom: 20px; opacity: 0.8;">Tap map to set destination</p>
-            
+            <p id="instruction" style="font-size: 0.8rem; margin-bottom: 20px; opacity: 0.8;">Search or tap map to set destination</p>
             <button id="startBtn" class="btn btn-primary" disabled>Start Alarm</button>
             <button id="stopBtn" class="btn btn-danger">Stop Alarm</button>
         </div>
@@ -117,43 +113,49 @@
     <audio id="alarmSound" loop src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg"></audio>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
     <script>
-        // 1. Service Worker Registration
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js').catch(err => console.log('SW error:', err));
-            });
+            window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js'); });
         }
 
-        // 2. Variables & Audio Assets
         const silentAudio = new Audio('https://raw.githubusercontent.com/anars/blank-audio/master/1-second-of-silence.mp3');
         silentAudio.loop = true;
         
         let map, userMarker, destMarker, watchId, currentTiles;
         let isDark = false;
         const alarmSound = document.getElementById('alarmSound');
-        const lightTiles = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-      
-// This is a "Night Navigation" style: less black, more grey/blue for visibility
-        const darkTiles = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png';ng';
 
-        // 3. Initialize Map & Locate
+        const lightTiles = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+        const darkTiles = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png';
+
+        // 1. Init Map
         map = L.map('map', { zoomControl: false });
         currentTiles = L.tileLayer(lightTiles).addTo(map);
         map.locate({ setView: true, maxZoom: 16, enableHighAccuracy: true });
 
         map.on('locationfound', (e) => {
             if (!userMarker) {
-                userMarker = L.marker(e.latlng, {
-                    icon: L.divIcon({ className: 'user-dot', iconSize: [14, 14] })
-                }).addTo(map);
-            } else {
-                userMarker.setLatLng(e.latlng);
-            }
+                userMarker = L.marker(e.latlng, { icon: L.divIcon({ className: 'user-dot', iconSize: [14, 14] }) }).addTo(map);
+            } else { userMarker.setLatLng(e.latlng); }
         });
 
-        // 4. UI Toggle & Map Clicks
+        // 2. Search Bar
+        const geocoder = L.Control.geocoder({
+            defaultMarkGeocode: false,
+            placeholder: "Search stop...",
+            collapsed: false
+        }).on('markgeocode', function(e) {
+            const latlng = e.geocode.center;
+            if (destMarker) map.removeLayer(destMarker);
+            destMarker = L.marker(latlng).addTo(map);
+            map.setView(latlng, 16);
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('instruction').innerText = "Destination Set!";
+        }).addTo(map);
+
+        // 3. Theme Toggle
         document.getElementById('themeBtn').onclick = () => {
             isDark = !isDark;
             document.body.setAttribute('data-theme', isDark ? 'dark' : 'light');
@@ -168,74 +170,21 @@
             document.getElementById('instruction').innerText = "Destination Locked!";
         });
 
-        // 5. MAIN TRACKING LOGIC (Background Ready)
+        // 4. Background Tracking Logic
         document.getElementById('startBtn').onclick = async () => {
-            // A. Media Session Metadata (Crucial for Background)
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.metadata = new MediaMetadata({
                     title: 'Stop-Alert: ACTIVE',
-                    artist: 'Background Tracking On',
+                    artist: 'GPS Tracking Running',
                     artwork: [{ src: 'https://cdn-icons-png.flaticon.com/512/552/552408.png', sizes: '512x512', type: 'image/png' }]
                 });
             }
 
-            // B. Start Silent Audio & UI Change
-            try { await silentAudio.play(); } catch (err) { console.log("Audio Blocked"); }
+            try { await silentAudio.play(); } catch (e) { }
             document.getElementById('startBtn').style.display = 'none';
             document.getElementById('stopBtn').style.display = 'block';
             
-            // C. Wake Lock & GPS Start
-            if ('wakeLock' in navigator) {
-                try { await navigator.wakeLock.request('screen'); } catch (err) { }
-            }
-
-            const geoOptions = {
-                enableHighAccuracy: true,
-                maximumAge: 0,
-                timeout: 10000 
-            };
+            if ('wakeLock' in navigator) { try { await navigator.wakeLock.request('screen'); } catch (e) { } }
 
             watchId = navigator.geolocation.watchPosition(async (pos) => {
-                const { latitude: lat, longitude: lon } = pos.coords;
-                const userLoc = [lat, lon];
-                const destLoc = destMarker.getLatLng();
-
-                userMarker.setLatLng(userLoc);
-
-                // D. PRIORITY CALCULATION (Local Math - No Internet Needed)
-                // This updates even if the network is throttled in the background
-                const directDist = map.distance(userLoc, destLoc);
-                document.getElementById('distance-display').innerHTML = `~${(directDist/1000).toFixed(1)}<span>km</span>`;
-
-                if (directDist < 800) { 
-                    triggerAlarm();
-                }
-
-                // E. SECONDARY CALCULATION (Road Distance)
-                const url = `https://router.project-osrm.org/route/v1/driving/${lon},${lat};${destLoc.lng},${destLoc.lat}?overview=false`;
-                fetch(url)
-                    .then(r => r.json())
-                    .then(res => {
-                        const roadMeters = res.routes[0].distance;
-                        document.getElementById('distance-display').innerHTML = `${(roadMeters/1000).toFixed(1)}<span>km</span>`;
-                        if (roadMeters < 800) triggerAlarm();
-                    })
-                    .catch(() => { /* Maintain straight-line view */ });
-
-            }, (err) => {
-                console.warn("GPS Signal Lost");
-            }, geoOptions);
-        };
-
-        function triggerAlarm() {
-            if (alarmSound.paused) {
-                alarmSound.play();
-                document.getElementById('alarm-overlay').style.display = 'flex';
-                if (navigator.vibrate) navigator.vibrate([1000, 500, 1000, 500, 1000]);
-            }
-        }
-
-        document.getElementById('stopBtn').onclick = () => location.reload();
-    </script>
-</body>
-</html>
+                const { latitude: lat, longitude:
