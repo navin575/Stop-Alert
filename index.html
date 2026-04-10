@@ -8,81 +8,57 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Stop-Alert">
     <link rel="manifest" href="./manifest.json">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
 
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-control-geocoder@2.4.0/dist/Control.Geocoder.min.css" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     
     <style>
         :root {
-            --primary: #6366f1;
-            --bg: #ffffff;
-            --text: #1e293b;
-            --panel: rgba(255, 255, 255, 0.9);
-            --border: rgba(0, 0, 0, 0.1);
-            --danger: #ef4444;
+            --primary: #6366f1; --bg: #ffffff; --text: #1e293b;
+            --panel: rgba(255, 255, 255, 0.9); --border: rgba(0, 0, 0, 0.1); --danger: #ef4444;
         }
-        /* Force the search bar to stay on top of everything */
-.leaflet-top.leaflet-left {
-    z-index: 1002 !important;
-}
 
-.leaflet-control-geocoder {
-    background: white;
-    min-width: 200px;
-    min-height: 40px;
-    display: block !important;
-}
         [data-theme="dark"] {
-            --bg: #1e293b; 
-            --text: #f8fafc;
-            --panel: rgba(30, 41, 59, 0.95);
-            --border: rgba(255, 255, 255, 0.1);
-            --primary: #818cf8;
+            --bg: #1e293b; --text: #f8fafc; --panel: rgba(30, 41, 59, 0.95);
+            --border: rgba(255, 255, 255, 0.1); --primary: #818cf8;
         }
 
         body, html { 
-            margin: 0; padding: 0; height: 100%; 
-            font-family: 'Inter', sans-serif; background: var(--bg);
-            color: var(--text); overflow: hidden; transition: background 0.3s ease;
+            margin: 0; padding: 0; height: 100%; font-family: 'Inter', sans-serif; 
+            background: var(--bg); color: var(--text); overflow: hidden;
         }
 
         #map { height: 100vh; width: 100%; z-index: 1; background: #cbd5e1; }
-        [data-theme="dark"] #map { background: #0f172a; }
 
-        .theme-toggle {
-            position: absolute; top: 20px; right: 20px; z-index: 1001;
-            background: var(--panel); border: 1px solid var(--border);
-            padding: 10px; border-radius: 50%; cursor: pointer;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1); font-size: 20px;
-        }
-
-        /* Search Bar Styling */
+        /* --- FORCE SEARCH BAR VISIBILITY --- */
+        .leaflet-top.leaflet-left { z-index: 1002 !important; }
         .leaflet-control-geocoder { 
-            border-radius: 12px !important; margin-top: 20px !important; 
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+            background: white !important; border: 2px solid var(--primary) !important;
+            border-radius: 12px !important; margin-top: 15px !important; 
+            min-width: 220px !important; box-shadow: 0 4px 15px rgba(0,0,0,0.2) !important;
         }
         [data-theme="dark"] .leaflet-control-geocoder { background: var(--panel) !important; color: white !important; }
         [data-theme="dark"] .leaflet-control-geocoder-form input { color: white !important; }
 
+        .theme-toggle {
+            position: absolute; top: 15px; right: 15px; z-index: 1001;
+            background: var(--panel); border: 1px solid var(--border);
+            padding: 10px; border-radius: 50%; cursor: pointer; font-size: 20px;
+        }
+
         .ui-overlay {
-            position: absolute; bottom: 30px; left: 50%;
-            transform: translateX(-50%); width: 90%; max-width: 400px;
-            z-index: 1000;
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            width: 90%; max-width: 400px; z-index: 1000;
         }
 
         .glass-panel {
-            background: var(--panel); backdrop-filter: blur(12px);
-            border: 1px solid var(--border); border-radius: 28px; padding: 24px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.2); text-align: center;
+            background: var(--panel); backdrop-filter: blur(12px); border: 1px solid var(--border);
+            border-radius: 28px; padding: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); text-align: center;
         }
 
-        h1 { margin: 0; font-size: 1.1rem; font-weight: 800; color: var(--primary); text-transform: uppercase; }
-        #distance-display { font-size: 3rem; font-weight: 800; margin: 15px 0; display: flex; align-items: baseline; justify-content: center; }
+        #distance-display { font-size: 3rem; font-weight: 800; margin: 10px 0; display: flex; align-items: baseline; justify-content: center; }
         #distance-display span { font-size: 1.2rem; margin-left: 4px; opacity: 0.6; }
 
         .btn { width: 100%; padding: 18px; border: none; border-radius: 20px; font-weight: 700; font-size: 1.1rem; cursor: pointer; }
@@ -90,15 +66,11 @@
         .btn-primary:disabled { background: #94a3b8; opacity: 0.5; }
         .btn-danger { background: var(--danger); color: white; display: none; }
 
-        .user-dot {
-            width: 14px; height: 14px; background: var(--primary);
-            border: 3px solid white; border-radius: 50%;
-            box-shadow: 0 0 15px var(--primary);
-        }
+        .user-dot { width: 14px; height: 14px; background: var(--primary); border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px var(--primary); }
 
         #alarm-overlay {
             position: fixed; inset: 0; background: var(--danger); z-index: 9999;
-            display: none; flex-direction: column; align-items: center; justify-content: center; color: white; text-align: center;
+            display: none; flex-direction: column; align-items: center; justify-content: center; color: white;
         }
     </style>
 </head>
@@ -109,28 +81,27 @@
 
     <div class="ui-overlay">
         <div class="glass-panel">
-            <h1>Stop-Alert</h1>
+            <h1 style="margin:0; font-size:1rem; color:var(--primary);">Stop-Alert</h1>
             <div id="distance-display">--<span>km</span></div>
-            <p id="instruction" style="font-size: 0.8rem; margin-bottom: 20px; opacity: 0.8;">Search or tap map to set destination</p>
+            <p id="instruction" style="font-size: 0.8rem; margin-bottom: 15px; opacity:0.8;">Search or tap map to set destination</p>
             <button id="startBtn" class="btn btn-primary" disabled>Start Alarm</button>
             <button id="stopBtn" class="btn btn-danger">Stop Alarm</button>
         </div>
     </div>
 
     <div id="alarm-overlay">
-        <h1 style="color: white; font-size: 4rem;">WAKE UP!</h1>
+        <h1 style="font-size: 4rem; margin: 0;">WAKE UP!</h1>
         <button onclick="location.reload()" class="btn" style="background: white; color: var(--danger); width: 200px; margin-top: 40px;">I'M AWAKE</button>
     </div>
 
     <audio id="alarmSound" loop src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg"></audio>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-control-geocoder@2.4.0/dist/Control.Geocoder.min.js"></script>
 
     <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js'); });
-        }
+        // PWA
+        if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js'); }); }
 
         const silentAudio = new Audio('https://raw.githubusercontent.com/anars/blank-audio/master/1-second-of-silence.mp3');
         silentAudio.loop = true;
@@ -138,25 +109,19 @@
         let map, userMarker, destMarker, watchId, currentTiles;
         let isDark = false;
         const alarmSound = document.getElementById('alarmSound');
-
         const lightTiles = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
         const darkTiles = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png';
 
         // 1. Init Map
         map = L.map('map', { zoomControl: false });
         currentTiles = L.tileLayer(lightTiles).addTo(map);
+        map.setView([0,0], 2);
         map.locate({ setView: true, maxZoom: 16, enableHighAccuracy: true });
 
-        map.on('locationfound', (e) => {
-            if (!userMarker) {
-                userMarker = L.marker(e.latlng, { icon: L.divIcon({ className: 'user-dot', iconSize: [14, 14] }) }).addTo(map);
-            } else { userMarker.setLatLng(e.latlng); }
-        });
-
-        // 2. Search Bar
+        // 2. FORCE ADD SEARCH BAR
         const geocoder = L.Control.geocoder({
             defaultMarkGeocode: false,
-            placeholder: "Search stop...",
+            placeholder: "Search destination...",
             collapsed: false
         }).on('markgeocode', function(e) {
             const latlng = e.geocode.center;
@@ -164,10 +129,15 @@
             destMarker = L.marker(latlng).addTo(map);
             map.setView(latlng, 16);
             document.getElementById('startBtn').disabled = false;
-            document.getElementById('instruction').innerText = "Destination Set!";
+            document.getElementById('instruction').innerText = "Target Locked!";
         }).addTo(map);
 
-        // 3. Theme Toggle
+        map.on('locationfound', (e) => {
+            if (!userMarker) {
+                userMarker = L.marker(e.latlng, { icon: L.divIcon({ className: 'user-dot', iconSize: [14, 14] }) }).addTo(map);
+            } else { userMarker.setLatLng(e.latlng); }
+        });
+
         document.getElementById('themeBtn').onclick = () => {
             isDark = !isDark;
             document.body.setAttribute('data-theme', isDark ? 'dark' : 'light');
@@ -179,15 +149,15 @@
             if (destMarker) map.removeLayer(destMarker);
             destMarker = L.marker(e.latlng).addTo(map);
             document.getElementById('startBtn').disabled = false;
-            document.getElementById('instruction').innerText = "Destination Locked!";
+            document.getElementById('instruction').innerText = "Manual Pin Set!";
         });
 
-        // 4. Background Tracking Logic
+        // 3. Start Alarm (Background Mode)
         document.getElementById('startBtn').onclick = async () => {
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.metadata = new MediaMetadata({
                     title: 'Stop-Alert: ACTIVE',
-                    artist: 'GPS Tracking Running',
+                    artist: 'Tracking in background...',
                     artwork: [{ src: 'https://cdn-icons-png.flaticon.com/512/552/552408.png', sizes: '512x512', type: 'image/png' }]
                 });
             }
@@ -198,5 +168,40 @@
             
             if ('wakeLock' in navigator) { try { await navigator.wakeLock.request('screen'); } catch (e) { } }
 
+            const geoOptions = { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 };
+
             watchId = navigator.geolocation.watchPosition(async (pos) => {
-                const { latitude: lat, longitude:
+                const { latitude: lat, longitude: lon } = pos.coords;
+                const userLoc = [lat, lon];
+                const destLoc = destMarker.getLatLng();
+                userMarker.setLatLng(userLoc);
+
+                // BACKGROUND UPDATING KM (Math only)
+                const directDist = map.distance(userLoc, destLoc);
+                document.getElementById('distance-display').innerHTML = `${(directDist/1000).toFixed(1)}<span>km</span>`;
+
+                if (directDist < 800) { triggerAlarm(); }
+
+                // ROAD DATA (Network optional)
+                fetch(`https://router.project-osrm.org/route/v1/driving/${lon},${lat};${destLoc.lng},${destLoc.lat}?overview=false`)
+                    .then(r => r.json()).then(res => {
+                        const roadMeters = res.routes[0].distance;
+                        document.getElementById('distance-display').innerHTML = `${(roadMeters/1000).toFixed(1)}<span>km</span>`;
+                        if (roadMeters < 800) triggerAlarm();
+                    }).catch(() => {});
+
+            }, null, geoOptions);
+        };
+
+        function triggerAlarm() {
+            if (alarmSound.paused) {
+                alarmSound.play();
+                document.getElementById('alarm-overlay').style.display = 'flex';
+                if (navigator.vibrate) navigator.vibrate([1000, 500, 1000]);
+            }
+        }
+
+        document.getElementById('stopBtn').onclick = () => location.reload();
+    </script>
+</body>
+</html>
