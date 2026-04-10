@@ -78,11 +78,12 @@
         .btn-primary:disabled { background: #94a3b8; opacity: 0.5; }
         .btn-danger { background: var(--danger); color: white; display: none; }
 
-        .user-dot {
-            width: 14px; height: 14px; background: var(--primary);
-            border: 3px solid white; border-radius: 50%;
-            box-shadow: 0 0 15px var(--primary);
-        }
+       .user-dot {
+    width: 14px; height: 14px; background: var(--primary);
+    border: 3px solid white; border-radius: 50%;
+    /* This glow makes the dot "pop" off the dark map */
+    box-shadow: 0 0 20px 5px rgba(129, 140, 248, 0.6); 
+}
 
         #alarm-overlay {
             position: fixed; inset: 0; background: var(--danger); z-index: 9999;
