@@ -132,7 +132,8 @@
         let isDark = false;
         const alarmSound = document.getElementById('alarmSound');
         const lightTiles = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-        const darkTiles = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+        // This version has better contrast for roads and labels
+const darkTiles = 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png';
 
         // 3. Initialize Map & Locate
         map = L.map('map', { zoomControl: false });
