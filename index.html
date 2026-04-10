@@ -10,7 +10,6 @@
     <link rel="manifest" href="./manifest.json">
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     
     <style>
@@ -25,15 +24,23 @@
         .ui-overlay { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 400px; z-index: 1000; }
         .glass-panel { background: var(--panel); backdrop-filter: blur(12px); border: 1px solid var(--border); border-radius: 28px; padding: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); text-align: center; }
 
-        /* Custom Search Box inside the Panel */
-        #search-container { margin-bottom: 15px; }
-        .leaflet-control-geocoder { width: 100% !important; margin: 0 !important; box-shadow: none !important; border: 1px solid var(--border) !important; border-radius: 12px !important; }
-        .leaflet-control-geocoder-form input { width: 100% !important; font-family: 'Inter'; padding: 10px !important; }
+        /* Custom Search Box UI */
+        .search-container { position: relative; margin-bottom: 15px; }
+        #dest-search { 
+            width: 100%; padding: 14px; border-radius: 12px; border: 1px solid var(--border); 
+            font-family: 'Inter'; font-size: 0.9rem; box-sizing: border-box; outline: none;
+        }
+        #search-results {
+            position: absolute; bottom: 100%; left: 0; width: 100%; background: white;
+            border-radius: 12px; box-shadow: 0 -5px 15px rgba(0,0,0,0.1); 
+            max-height: 200px; overflow-y: auto; display: none; z-index: 1005;
+        }
+        .result-item { padding: 10px; border-bottom: 1px solid #eee; font-size: 0.8rem; cursor: pointer; text-align: left; color: #1e293b; }
 
         #distance-display { font-size: 3rem; font-weight: 800; margin: 10px 0; display: flex; align-items: baseline; justify-content: center; }
         #distance-display span { font-size: 1.2rem; margin-left: 4px; opacity: 0.6; }
 
-        .btn { width: 100%; padding: 18px; border: none; border-radius: 20px; font-weight: 700; font-size: 1.1rem; cursor: pointer; transition: 0.2s; }
+        .btn { width: 100%; padding: 18px; border: none; border-radius: 20px; font-weight: 700; font-size: 1.1rem; cursor: pointer; }
         .btn-primary { background: var(--primary); color: white; }
         .btn-primary:disabled { background: #94a3b8; opacity: 0.5; }
         .btn-danger { background: var(--danger); color: white; display: none; }
@@ -51,10 +58,13 @@
         <div class="glass-panel">
             <h1 style="font-size: 0.9rem; color: var(--primary); margin-bottom: 10px;">STOP-ALERT</h1>
             
-            <div id="search-box"></div> 
+            <div class="search-container">
+                <input type="text" id="dest-search" placeholder="🔍 Type your stop name...">
+                <div id="search-results"></div>
+            </div>
 
             <div id="distance-display">--<span>km</span></div>
-            <p id="instruction" style="font-size: 0.8rem; margin-bottom: 15px; opacity: 0.7;">Type destination or tap map</p>
+            <p id="instruction" style="font-size: 0.8rem; margin-bottom: 15px; opacity: 0.7;">Tap map or search to set stop</p>
             
             <button id="startBtn" class="btn btn-primary" disabled>Start Alarm</button>
             <button id="stopBtn" class="btn btn-danger">Stop Alarm</button>
@@ -69,7 +79,6 @@
     <audio id="alarmSound" loop src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg"></audio>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
     <script>
         if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js'); }); }
@@ -82,27 +91,47 @@
         const lightTiles = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
         const darkTiles = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png';
 
-        // 1. Init Map
+        // Initialize Map
         map = L.map('map', { zoomControl: false }).setView([0,0], 2);
         currentTiles = L.tileLayer(lightTiles).addTo(map);
         map.locate({ setView: true, maxZoom: 16, enableHighAccuracy: true });
 
-        // 2. Add Geocoder to the specific Search Box div
-        const geocoder = L.Control.geocoder({
-            defaultMarkGeocode: false,
-            placeholder: "🔍 Search destination...",
-            collapsed: false
-        }).on('markgeocode', function(e) {
-            const latlng = e.geocode.center;
+        // --- CUSTOM SEARCH LOGIC ---
+        const searchInput = document.getElementById('dest-search');
+        const resultsBox = document.getElementById('search-results');
+
+        searchInput.addEventListener('input', async (e) => {
+            const query = e.target.value;
+            if (query.length < 3) { resultsBox.style.display = 'none'; return; }
+
+            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=5`);
+            const data = await res.json();
+            
+            resultsBox.innerHTML = '';
+            data.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'result-item';
+                div.innerText = item.display_name;
+                div.onclick = () => {
+                    const latlng = [item.lat, item.lon];
+                    setDestination(latlng);
+                    resultsBox.style.display = 'none';
+                    searchInput.value = item.display_name;
+                };
+                resultsBox.appendChild(div);
+            });
+            resultsBox.style.display = 'block';
+        });
+
+        function setDestination(latlng) {
             if (destMarker) map.removeLayer(destMarker);
             destMarker = L.marker(latlng).addTo(map);
             map.setView(latlng, 16);
             document.getElementById('startBtn').disabled = false;
-            document.getElementById('instruction').innerText = "Destination Locked!";
-        });
-        
-        // Put the search bar inside our UI div instead of the map corner
-        document.getElementById('search-box').appendChild(geocoder.onAdd(map));
+            document.getElementById('instruction').innerText = "Target Set!";
+        }
+
+        map.on('click', (e) => { setDestination(e.latlng); });
 
         map.on('locationfound', (e) => {
             if (!userMarker) {
@@ -117,36 +146,24 @@
             currentTiles = L.tileLayer(isDark ? darkTiles : lightTiles).addTo(map);
         };
 
-        map.on('click', (e) => {
-            if (destMarker) map.removeLayer(destMarker);
-            destMarker = L.marker(e.latlng).addTo(map);
-            document.getElementById('startBtn').disabled = false;
-            document.getElementById('instruction').innerText = "Manual Pin Set!";
-        });
-
+        // Alarm Logic
         document.getElementById('startBtn').onclick = async () => {
-            if ('mediaSession' in navigator) {
-                navigator.mediaSession.metadata = new MediaMetadata({ title: 'Stop-Alert: ACTIVE', artist: 'Tracking your stop...' });
-            }
             try { await silentAudio.play(); } catch (e) { }
             document.getElementById('startBtn').style.display = 'none';
             document.getElementById('stopBtn').style.display = 'block';
             
-            watchId = navigator.geolocation.watchPosition(async (pos) => {
+            watchId = navigator.geolocation.watchPosition((pos) => {
                 const { latitude: lat, longitude: lon } = pos.coords;
-                const userLoc = [lat, lon];
-                const destLoc = destMarker.getLatLng();
-                userMarker.setLatLng(userLoc);
+                userMarker.setLatLng([lat, lon]);
+                const dist = map.distance([lat, lon], destMarker.getLatLng());
+                document.getElementById('distance-display').innerHTML = `${(dist/1000).toFixed(1)}<span>km</span>`;
 
-                const directDist = map.distance(userLoc, destLoc);
-                document.getElementById('distance-display').innerHTML = `${(directDist/1000).toFixed(1)}<span>km</span>`;
-
-                if (directDist < 800) { 
+                if (dist < 800) { 
                     alarmSound.play();
                     document.getElementById('alarm-overlay').style.display = 'flex';
                     if (navigator.vibrate) navigator.vibrate([1000, 500, 1000]);
                 }
-            }, null, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
+            }, null, { enableHighAccuracy: true });
         };
 
         document.getElementById('stopBtn').onclick = () => location.reload();
