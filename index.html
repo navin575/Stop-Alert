@@ -10,6 +10,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Stop-Alert">
     <link rel="manifest" href="./manifest.json">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
@@ -24,7 +26,17 @@
             --border: rgba(0, 0, 0, 0.1);
             --danger: #ef4444;
         }
+        /* Force the search bar to stay on top of everything */
+.leaflet-top.leaflet-left {
+    z-index: 1002 !important;
+}
 
+.leaflet-control-geocoder {
+    background: white;
+    min-width: 200px;
+    min-height: 40px;
+    display: block !important;
+}
         [data-theme="dark"] {
             --bg: #1e293b; 
             --text: #f8fafc;
