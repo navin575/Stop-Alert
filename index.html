@@ -167,18 +167,50 @@
         });
 
         // 5. Tracking Logic
-        document.getElementById('startBtn').onclick = () => {
-            silentAudio.play(); 
+document.getElementById('startBtn').onclick = async () => {
+            // --- NEW: THE MEDIA SESSION TRICK ---
+            // This tells the phone to treat the app like a Music Player (like Spotify)
+            // It prevents the GPS from being paused when you lock the screen.
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.metadata = new MediaMetadata({
+                    title: 'Stop-Alert: ACTIVE',
+                    artist: 'Monitoring your location...',
+                    album: 'Safety Mode',
+                    artwork: [{ src: 'https://cdn-icons-png.flaticon.com/512/552/552408.png', sizes: '512x512', type: 'image/png' }]
+                });
+            }
+
+            // Start the silent audio loop to keep the CPU awake
+            try {
+                await silentAudio.play();
+            } catch (err) {
+                console.log("Audio auto-play blocked. User interaction required.");
+            }
+
             document.getElementById('startBtn').style.display = 'none';
             document.getElementById('stopBtn').style.display = 'block';
             
-            if ('wakeLock' in navigator) navigator.wakeLock.request('screen').catch(console.error);
+            // Keep the screen awake if it's visible
+            if ('wakeLock' in navigator) {
+                try {
+                    await navigator.wakeLock.request('screen');
+                } catch (err) {
+                    console.error("Wake Lock error:", err);
+                }
+            }
+
+            // High-accuracy options for background tracking
+            const geoOptions = {
+                enableHighAccuracy: true,
+                maximumAge: 0,
+                timeout: 10000
+            };
 
             watchId = navigator.geolocation.watchPosition(async (pos) => {
                 const { latitude: lat, longitude: lon } = pos.coords;
                 userMarker.setLatLng([lat, lon]);
 
-                // Road Distance Call
+                // Road Distance Call (OSRM)
                 const url = `https://router.project-osrm.org/route/v1/driving/${lon},${lat};${destMarker.getLatLng().lng},${destMarker.getLatLng().lat}?overview=false`;
                 
                 try {
@@ -186,7 +218,7 @@
                     const meters = res.routes[0].distance;
                     document.getElementById('distance-display').innerHTML = `${(meters/1000).toFixed(1)}<span>km</span>`;
                     
-                    if (meters < 1000) { 
+                    if (meters < 800) { 
                         alarmSound.play();
                         document.getElementById('alarm-overlay').style.display = 'flex';
                         if (navigator.vibrate) navigator.vibrate([500, 200, 500]);
