@@ -3,7 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Stop-Alert Pro | Radius & ETA</title>
+    <title>Stop-Alert Pro | GPS Travel Alarm</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#6366f1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
@@ -20,7 +25,6 @@
         .ui-overlay { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); width: 92%; max-width: 400px; z-index: 1000; }
         .glass-panel { background: var(--panel); border: 1px solid var(--border); border-radius: 32px; padding: 25px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); text-align: center; }
 
-        /* --- Slider Styling --- */
         .slider-container { margin: 15px 0; text-align: left; }
         .slider-label { display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; opacity: 0.7; margin-bottom: 8px; }
         input[type=range] { width: 100%; cursor: pointer; accent-color: var(--primary); }
@@ -34,6 +38,7 @@
         .btn:active { transform: scale(0.98); }
         .btn-primary { background: var(--primary); color: white; }
         .btn-primary:disabled { background: #94a3b8; opacity: 0.5; cursor: not-allowed; }
+        .btn-danger { background: var(--danger); color: white; display: none; }
         
         #alarm-overlay { position: fixed; inset: 0; background: var(--danger); z-index: 9999; display: none; flex-direction: column; align-items: center; justify-content: center; color: white; text-align: center; }
 
@@ -59,10 +64,10 @@
 
             <div id="distance-display">--<span>km</span></div>
             
-            <div id="eta-display">Tap map to set destination</div>
+            <div id="eta-display">📍 Tap map to set destination</div>
             
             <button id="startBtn" class="btn btn-primary" disabled>Start Tracking</button>
-            <button id="stopBtn" class="btn btn-primary" style="background:#64748b; display:none;">Cancel Alarm</button>
+            <button id="stopBtn" class="btn btn-danger">Cancel Alarm</button>
         </div>
     </div>
 
@@ -83,10 +88,11 @@
         let map, userMarker, destMarker, watchId, radiusCircle, currentTiles;
         let alarmRadius = 800;
         let lastPos = null, lastTime = null;
+        let alarmTriggered = false;
         
         const alarmSound = document.getElementById('alarmSound');
         const lightTiles = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-        const darkTiles = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png';
+        const darkTiles = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
         // Initialize Map
         map = L.map('map', { zoomControl: false }).setView([0,0], 2);
@@ -115,10 +121,12 @@
 
         function setDest(latlng) {
             if (destMarker) map.removeLayer(destMarker);
+            if (radiusCircle) map.removeLayer(radiusCircle);
             destMarker = L.marker(latlng).addTo(map);
             drawRadiusCircle();
             document.getElementById('startBtn').disabled = false;
-            document.getElementById('eta-display').innerText = "Ready to start";
+            document.getElementById('eta-display').innerHTML = "✅ Destination set! Press Start";
+            document.getElementById('distance-display').innerHTML = '--<span>km</span>';
         }
 
         map.on('click', (e) => setDest(e.latlng));
@@ -136,20 +144,19 @@
             currentTiles = L.tileLayer(isDark ? darkTiles : lightTiles).addTo(map);
         };
 
-        // ETA Calculation Logic
         function updateETA(distMeters, currentLatLng) {
             const now = Date.now();
             if (lastPos && lastTime) {
-                const timeDiff = (now - lastTime) / 1000; // seconds
-                const distDiff = map.distance(lastPos, currentLatLng); // meters
-                const speed = distDiff / timeDiff; // m/s
+                const timeDiff = (now - lastTime) / 1000;
+                const distDiff = map.distance(L.latLng(lastPos[0], lastPos[1]), L.latLng(currentLatLng[0], currentLatLng[1]));
+                const speed = distDiff / timeDiff;
 
-                if (speed > 1.5) { // If moving faster than ~5km/h
+                if (speed > 1.5) {
                     const secondsLeft = distMeters / speed;
                     const minsLeft = Math.ceil(secondsLeft / 60);
-                    document.getElementById('eta-display').innerText = `~${minsLeft} mins remaining`;
+                    document.getElementById('eta-display').innerHTML = `⏱️ ~${minsLeft} min remaining`;
                 } else {
-                    document.getElementById('eta-display').innerText = "Waiting for movement...";
+                    document.getElementById('eta-display').innerHTML = "🚶 Waiting for movement...";
                 }
             }
             lastPos = currentLatLng;
@@ -157,27 +164,64 @@
         }
 
         document.getElementById('startBtn').onclick = async () => {
-            try { await silentAudio.play(); } catch (e) { }
+            if (!destMarker) {
+                alert('📍 Tap the map to set your destination first!');
+                return;
+            }
+            
+            alarmTriggered = false;
+            
+            try { await silentAudio.play(); } catch (e) { console.log('Audio play blocked'); }
+            
             document.getElementById('startBtn').style.display = 'none';
             document.getElementById('stopBtn').style.display = 'block';
+            
+            if ('wakeLock' in navigator) {
+                navigator.wakeLock.request('screen');
+            }
             
             watchId = navigator.geolocation.watchPosition((pos) => {
                 const { latitude: lat, longitude: lon } = pos.coords;
                 const currentLatLng = [lat, lon];
-                userMarker.setLatLng(currentLatLng);
                 
-                const d = map.distance(currentLatLng, destMarker.getLatLng());
-                document.getElementById('distance-display').innerHTML = `${(d/1000).toFixed(1)}<span>km</span>`;
+                if (!userMarker) {
+                    userMarker = L.marker(currentLatLng, { icon: L.divIcon({ className: 'user-dot', iconSize: [14, 14] }) }).addTo(map);
+                } else {
+                    userMarker.setLatLng(currentLatLng);
+                }
                 
-                updateETA(d, currentLatLng);
-
-                if (d < alarmRadius) { 
-                    alarmSound.play(); 
+                const distance = map.distance(currentLatLng, destMarker.getLatLng());
+                document.getElementById('distance-display').innerHTML = `${(distance/1000).toFixed(1)}<span>km</span>`;
+                
+                updateETA(distance, currentLatLng);
+                
+                if (distance < alarmRadius && !alarmTriggered) {
+                    alarmTriggered = true;
+                    alarmSound.play();
                     document.getElementById('alarm-overlay').style.display = 'flex';
                     if (navigator.vibrate) navigator.vibrate([1000, 500, 1000]);
                 }
-            }, null, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
+            }, (err) => {
+                console.error('GPS Error:', err);
+                document.getElementById('eta-display').innerHTML = "⚠️ Enable location services";
+            }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
         };
+
+        document.getElementById('stopBtn').onclick = () => {
+            if (watchId) navigator.geolocation.clearWatch(watchId);
+            silentAudio.pause();
+            silentAudio.currentTime = 0;
+            alarmSound.pause();
+            alarmSound.currentTime = 0;
+            location.reload();
+        };
+
+        // Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(reg => console.log('✅ SW registered:', reg))
+                .catch(err => console.log('❌ SW failed:', err));
+        }
     </script>
 </body>
 </html>
